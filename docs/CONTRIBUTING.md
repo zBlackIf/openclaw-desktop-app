@@ -1,0 +1,64 @@
+# Contributing to OpenClaw Desktop App
+
+## For AI Agents
+
+This project is designed to be easily understood and extended by AI agents. Key reference documents:
+
+1. **`docs/PRD.md`** - What the app should do (features, requirements, user stories)
+2. **`docs/ARCHITECTURE.md`** - How the app is built (layers, data flow, concurrency)
+3. **`docs/DESIGN_SYSTEM.md`** - How the app looks (colors, typography, components, layouts)
+4. **`docs/CHANGELOG.md`** - What has changed
+
+### Architecture Quick Reference
+
+- **Pattern**: MVVM + Service Layer
+- **Concurrency**: Swift 6 strict concurrency. GatewayClient is an Actor. Services and ViewModels are @MainActor.
+- **State**: @Observable (Observation framework). Global state via AppState in SwiftUI Environment.
+- **WebSocket**: URLSessionWebSocketTask (no dependencies)
+- **Build**: `swift build` via Swift Package Manager
+
+### Adding a New Feature
+
+1. Create View in `Sources/Features/YourFeature/`
+2. Create ViewModel (annotate with `@MainActor @Observable`)
+3. Add Service methods if needed (in `Sources/Core/Services/`)
+4. Add RPC method constants to `GatewayProtocol.swift` if using new Gateway methods
+5. Add navigation item to `AppState.NavigationItem` if it's a top-level section
+6. Update the detail view switch in `ContentView.swift`
+7. Update documentation
+
+### Key Rules
+
+- All data crossing actor boundaries must be `Sendable`. Use `Data` serialization for `[String: Any]` types.
+- ViewModels must be `@MainActor @Observable`
+- Services must be `@MainActor` with `nonisolated let gateway: GatewayClient`
+- Use `sending` parameter annotation for actor method params when needed
+- Zero external dependencies policy - use Foundation/SwiftUI only
+
+## For Humans
+
+### Prerequisites
+
+- macOS 14+ (Sonoma)
+- Xcode 15+ or Swift 5.9+
+- OpenClaw installed and Gateway running for testing
+
+### Building
+
+```bash
+cd OpenClawDesktop
+swift build
+```
+
+### Running
+
+Open the generated `.app` in Xcode or run via:
+```bash
+swift run OpenClawDesktop
+```
+
+### Testing
+
+```bash
+swift test
+```
