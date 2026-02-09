@@ -2,7 +2,6 @@ import SwiftUI
 
 struct AgentMonitorView: View {
     @Environment(AppState.self) private var appState
-    @State private var eventBus: GatewayEventBus?
     @State private var selectedTab: MonitorTab = .thinking
     @State private var injectText: String = ""
 
@@ -38,11 +37,6 @@ struct AgentMonitorView: View {
             injectBar
         }
         .navigationTitle("Agent Monitor")
-        .task {
-            let bus = GatewayEventBus(gateway: appState.gatewayClient)
-            eventBus = bus
-            bus.startListening()
-        }
     }
 
     // MARK: - Status Bar
@@ -50,7 +44,7 @@ struct AgentMonitorView: View {
     private var agentStatusBar: some View {
         HStack {
             HStack(spacing: 8) {
-                if eventBus?.isAgentActive == true {
+                if appState.eventBus.isAgentActive {
                     ProgressView()
                         .scaleEffect(0.7)
                     Text("Agent Active")
@@ -76,12 +70,12 @@ struct AgentMonitorView: View {
                 } label: {
                     Image(systemName: "stop.fill")
                 }
-                .disabled(eventBus?.isAgentActive != true)
+                .disabled(!appState.eventBus.isAgentActive)
                 .tint(.red)
                 .help("Abort Agent Run")
 
                 Button {
-                    eventBus?.reset()
+                    appState.eventBus.reset()
                 } label: {
                     Image(systemName: "trash")
                 }
@@ -96,23 +90,16 @@ struct AgentMonitorView: View {
 
     @ViewBuilder
     private var tabContent: some View {
-        if let bus = eventBus {
-            switch selectedTab {
-            case .thinking:
-                ThinkingProcessView(eventBus: bus)
-            case .plan:
-                PlanTreeView(eventBus: bus)
-            case .tools:
-                toolCallsView(bus)
-            case .subAgents:
-                SubAgentPanel(eventBus: bus)
-            }
-        } else {
-            EmptyStateView(
-                icon: "brain",
-                title: "Agent Monitor",
-                description: "Connect to the Gateway to monitor agent activity"
-            )
+        let bus = appState.eventBus
+        switch selectedTab {
+        case .thinking:
+            ThinkingProcessView(eventBus: bus)
+        case .plan:
+            PlanTreeView(eventBus: bus)
+        case .tools:
+            toolCallsView(bus)
+        case .subAgents:
+            SubAgentPanel(eventBus: bus)
         }
     }
 

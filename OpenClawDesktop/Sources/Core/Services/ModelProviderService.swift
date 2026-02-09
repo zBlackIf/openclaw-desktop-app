@@ -18,10 +18,13 @@ final class ModelProviderService: Sendable {
 
         return providersData.compactMap { provDict -> ModelProvider? in
             guard let dict = provDict as? [String: Any] else { return nil }
+            let providerId = dict["id"] as? String ?? ""
+            // Try to get models from gateway response, fall back to known models for this provider
+            let models = AIModel.knownModels.filter { $0.provider == providerId }
             return ModelProvider(
-                id: dict["id"] as? String ?? "",
-                name: dict["name"] as? String ?? "",
-                models: [],
+                id: providerId,
+                name: dict["name"] as? String ?? providerId.capitalized,
+                models: models,
                 isAuthenticated: dict["authenticated"] as? Bool ?? false,
                 status: ModelProvider.ProviderStatus(rawValue: dict["status"] as? String ?? "inactive") ?? .inactive
             )

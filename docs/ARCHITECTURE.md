@@ -107,6 +107,7 @@ Global application state injected via SwiftUI Environment.
 - Current model info
 - Service instances (ConfigService, SessionService)
 - GatewayClient instance
+- Shared GatewayEventBus instance (initialized once, starts listening on successful connection)
 
 ## Data Flow
 

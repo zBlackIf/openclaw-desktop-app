@@ -84,6 +84,7 @@ final class AppState {
     let gatewayClient: GatewayClient
     let configService: ConfigService
     let sessionService: SessionService
+    let eventBus: GatewayEventBus
 
     // MARK: - Menu Bar
     var menuBarIcon: String {
@@ -98,6 +99,7 @@ final class AppState {
         self.gatewayClient = GatewayClient()
         self.configService = ConfigService(gateway: gatewayClient)
         self.sessionService = SessionService(gateway: gatewayClient)
+        self.eventBus = GatewayEventBus(gateway: gatewayClient)
 
         // Restore persisted settings
         loadPersistedSettings()
@@ -144,6 +146,7 @@ final class AppState {
         do {
             try await gatewayClient.connect(to: gatewayURL, token: authToken.isEmpty ? nil : authToken)
             connectionStatus = .connected
+            eventBus.startListening()
             await loadInitialData()
         } catch {
             connectionStatus = .error

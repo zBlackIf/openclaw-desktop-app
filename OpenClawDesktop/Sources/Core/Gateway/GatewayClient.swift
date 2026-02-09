@@ -41,6 +41,11 @@ actor GatewayClient {
     // MARK: - Connection
 
     func connect(to url: String, token: String? = nil) async throws {
+        // Clean up any existing connection first
+        if isConnected || webSocket != nil {
+            disconnect()
+        }
+
         currentURL = url
         currentToken = token
 

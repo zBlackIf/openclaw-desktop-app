@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.0] - 2026-02-09
+
+### Fixed
+- Session switching now properly reloads chat history (was clearing messages without reloading)
+- Streaming message tracking uses unique UUIDs instead of fragile magic string `"streaming"` ID
+- `GatewayEventBus` is now a shared singleton in `AppState` instead of being recreated on each `AgentMonitorView` appearance (prevents event listener leaks)
+- `GatewayClient.connect()` now cleans up any existing WebSocket before creating a new one (prevents task leaks on reconnection)
+- `ModelProviderService.getProviders()` now populates models from `AIModel.knownModels` per provider (was returning empty model arrays)
+- Chat errors (send failures, history load failures) now surface via the global `ErrorBannerView` instead of being silently stored in a local property
+
+### Changed
+- `ChatViewModel` methods now accept `appState` parameter for centralized error reporting
+- `GatewayEventBus` initialized once in `AppState.init()` and starts listening on successful connection
+- `AgentMonitorView` uses shared `appState.eventBus` instead of creating local instances
+
+### Added
+- Manual testing guide in `docs/CONTRIBUTING.md` with step-by-step Gateway testing checklist
+
 ## [0.2.0] - 2026-02-09
 
 ### Changed (API Alignment)

@@ -44,14 +44,14 @@ struct ChatView: View {
                 isDisabled: appState.connectionStatus != .connected,
                 onSend: {
                     Task {
-                        await viewModel.sendMessage(using: appState.sessionService)
+                        await viewModel.sendMessage(using: appState.sessionService, appState: appState)
                     }
                 }
             )
         }
         .navigationTitle("Chat")
         .task {
-            await viewModel.loadHistory(using: appState.sessionService)
+            await viewModel.loadHistory(using: appState.sessionService, appState: appState)
             viewModel.startListening(gateway: appState.gatewayClient)
         }
     }
@@ -84,7 +84,7 @@ struct ChatView: View {
             Menu {
                 ForEach(viewModel.sessions) { session in
                     Button(session.displayName) {
-                        viewModel.switchSession(to: session.id)
+                        viewModel.switchSession(to: session.id, using: appState.sessionService, appState: appState)
                     }
                 }
             } label: {
@@ -105,12 +105,13 @@ class ChatViewModel {
     var currentSessionName: String = "Main Session"
     var sessions: [Session] = []
     var streamingContent: String = ""
-    var errorMessage: String?
+    /// Tracks the UUID of the currently streaming assistant message
+    private var currentStreamingMessageId: String?
 
-    func loadHistory(using service: SessionService) async {
+    func loadHistory(using service: SessionService, appState: AppState) async {
         do {
             sessions = try await service.listSessions()
-            if let mainSession = sessions.first(where: { $0.isMain }) {
+            if currentSessionId == nil, let mainSession = sessions.first(where: { $0.isMain }) {
                 currentSessionId = mainSession.id
                 currentSessionName = mainSession.displayName
             }
@@ -118,11 +119,11 @@ class ChatViewModel {
                 messages = try await service.getHistory(sessionId: sessionId)
             }
         } catch {
-            errorMessage = "Failed to load chat history: \(error.localizedDescription)"
+            appState.showError("Failed to load chat history: \(error.localizedDescription)")
         }
     }
 
-    func sendMessage(using service: SessionService) async {
+    func sendMessage(using service: SessionService, appState: AppState) async {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
@@ -142,7 +143,7 @@ class ChatViewModel {
             try await service.sendMessage(text, sessionId: currentSessionId)
         } catch {
             isAgentTyping = false
-            errorMessage = "Failed to send message: \(error.localizedDescription)"
+            appState.showError("Failed to send message: \(error.localizedDescription)")
         }
     }
 
@@ -180,8 +181,9 @@ class ChatViewModel {
         case ChatEventKind.complete.rawValue:
             isAgentTyping = false
             // Finalize the streaming message
-            if let lastIndex = messages.indices.last,
-               messages[lastIndex].id == "streaming" {
+            if let streamId = currentStreamingMessageId,
+               let lastIndex = messages.indices.last,
+               messages[lastIndex].id == streamId {
                 let finalContent = streamingContent
                 messages[lastIndex] = ChatMessage(
                     id: UUID().uuidString,
@@ -193,6 +195,7 @@ class ChatViewModel {
                 )
             }
             streamingContent = ""
+            currentStreamingMessageId = nil
 
         case ChatEventKind.error.rawValue:
             isAgentTyping = false
@@ -207,6 +210,7 @@ class ChatViewModel {
                 ))
             }
             streamingContent = ""
+            currentStreamingMessageId = nil
 
         default:
             // For any other kind, try to extract content
@@ -219,10 +223,12 @@ class ChatViewModel {
     }
 
     private func updateOrCreateStreamingMessage(model: String?) {
-        if let lastIndex = messages.indices.last,
-           messages[lastIndex].role == .assistant && messages[lastIndex].id == "streaming" {
+        if let streamId = currentStreamingMessageId,
+           let lastIndex = messages.indices.last,
+           messages[lastIndex].id == streamId {
+            // Update existing streaming message
             messages[lastIndex] = ChatMessage(
-                id: "streaming",
+                id: streamId,
                 role: .assistant,
                 content: streamingContent,
                 timestamp: Date(),
@@ -230,8 +236,11 @@ class ChatViewModel {
                 tokens: nil
             )
         } else {
+            // Create new streaming message with unique ID
+            let newId = UUID().uuidString
+            currentStreamingMessageId = newId
             messages.append(ChatMessage(
-                id: "streaming",
+                id: newId,
                 role: .assistant,
                 content: streamingContent,
                 timestamp: Date(),
@@ -241,13 +250,16 @@ class ChatViewModel {
         }
     }
 
-    func switchSession(to sessionId: String) {
+    func switchSession(to sessionId: String, using service: SessionService, appState: AppState) {
         currentSessionId = sessionId
         if let session = sessions.first(where: { $0.id == sessionId }) {
             currentSessionName = session.displayName
         }
         messages.removeAll()
-        // Reload will happen via task
+        streamingContent = ""
+        currentStreamingMessageId = nil
+        // Reload history for the newly selected session
+        Task { await loadHistory(using: service, appState: appState) }
     }
 }
 

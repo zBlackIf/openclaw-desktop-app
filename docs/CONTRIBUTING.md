@@ -95,3 +95,34 @@ Currently 23 unit tests covering:
 - `/reset` - Reset session history
 - `/compact` - Compact session history
 - `/status` - Session status
+
+### Manual Testing with Real Gateway
+
+To test the app against a running OpenClaw Gateway:
+
+1. **Start OpenClaw Gateway**:
+   ```bash
+   openclaw start
+   ```
+   The Gateway should be running at `ws://127.0.0.1:18789`.
+
+2. **Launch the app**:
+   ```bash
+   cd OpenClawDesktop && swift run OpenClawDesktop
+   ```
+
+3. **Verify connection**: The sidebar should show a green status dot with "Connected". If it fails, check Settings to verify the Gateway URL and auth token.
+
+4. **Test checklist**:
+   - [ ] App auto-connects on launch (if auto-connect is enabled in Settings)
+   - [ ] Send a chat message and see streaming response
+   - [ ] Agent thinking appears in Agent Monitor > Thinking tab
+   - [ ] Tool calls appear in Agent Monitor > Tools tab
+   - [ ] Abort agent with the stop button during a running response
+   - [ ] Switch sessions via the session picker in Chat header
+   - [ ] Create a new session via Sessions > "+" button
+   - [ ] Reset / Compact session via Sessions detail buttons
+   - [ ] Switch models via Models view
+   - [ ] View channel status in Channels view
+   - [ ] Disconnect and reconnect via Settings
+   - [ ] Error banner appears on failed operations and auto-dismisses after 5 seconds
