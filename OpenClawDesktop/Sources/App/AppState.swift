@@ -3,6 +3,14 @@ import SwiftUI
 
 @MainActor @Observable
 final class AppState {
+    // MARK: - UserDefaults Keys
+    private enum Keys {
+        static let gatewayURL = "gatewayURL"
+        static let authToken = "authToken"
+        static let autoConnect = "autoConnect"
+        static let lastNavItem = "lastNavItem"
+    }
+
     // MARK: - Navigation
     enum NavigationItem: String, CaseIterable, Identifiable {
         case chat = "Chat"
@@ -26,7 +34,11 @@ final class AppState {
         }
     }
 
-    var selectedNavItem: NavigationItem = .chat
+    var selectedNavItem: NavigationItem = .chat {
+        didSet {
+            UserDefaults.standard.set(selectedNavItem.rawValue, forKey: Keys.lastNavItem)
+        }
+    }
 
     // MARK: - Gateway Connection
     enum ConnectionStatus: String {
@@ -38,8 +50,24 @@ final class AppState {
     }
 
     var connectionStatus: ConnectionStatus = .disconnected
-    var gatewayURL: String = "ws://127.0.0.1:18789"
-    var authToken: String = ""
+
+    var gatewayURL: String = "ws://127.0.0.1:18789" {
+        didSet {
+            UserDefaults.standard.set(gatewayURL, forKey: Keys.gatewayURL)
+        }
+    }
+
+    var authToken: String = "" {
+        didSet {
+            UserDefaults.standard.set(authToken, forKey: Keys.authToken)
+        }
+    }
+
+    var autoConnect: Bool = true {
+        didSet {
+            UserDefaults.standard.set(autoConnect, forKey: Keys.autoConnect)
+        }
+    }
 
     // MARK: - Current Model
     var currentModel: String = ""
@@ -47,7 +75,10 @@ final class AppState {
 
     // MARK: - Agent State
     var isAgentRunning: Bool = false
-    var isAgentPaused: Bool = false
+
+    // MARK: - Error Handling
+    var errorMessage: String?
+    var showError: Bool = false
 
     // MARK: - Services
     let gatewayClient: GatewayClient
@@ -67,7 +98,46 @@ final class AppState {
         self.gatewayClient = GatewayClient()
         self.configService = ConfigService(gateway: gatewayClient)
         self.sessionService = SessionService(gateway: gatewayClient)
+
+        // Restore persisted settings
+        loadPersistedSettings()
     }
+
+    private func loadPersistedSettings() {
+        let defaults = UserDefaults.standard
+
+        if let savedURL = defaults.string(forKey: Keys.gatewayURL), !savedURL.isEmpty {
+            gatewayURL = savedURL
+        }
+        if let savedToken = defaults.string(forKey: Keys.authToken) {
+            authToken = savedToken
+        }
+        if defaults.object(forKey: Keys.autoConnect) != nil {
+            autoConnect = defaults.bool(forKey: Keys.autoConnect)
+        }
+        if let savedNav = defaults.string(forKey: Keys.lastNavItem),
+           let navItem = NavigationItem(rawValue: savedNav) {
+            selectedNavItem = navItem
+        }
+    }
+
+    // MARK: - Error Display
+
+    func showError(_ message: String) {
+        errorMessage = message
+        showError = true
+
+        // Auto-dismiss after 5 seconds
+        Task {
+            try? await Task.sleep(for: .seconds(5))
+            if errorMessage == message {
+                showError = false
+                errorMessage = nil
+            }
+        }
+    }
+
+    // MARK: - Connection
 
     func connect() async {
         connectionStatus = .connecting
@@ -77,12 +147,20 @@ final class AppState {
             await loadInitialData()
         } catch {
             connectionStatus = .error
+            showError("Connection failed: \(error.localizedDescription)")
         }
     }
 
     func disconnect() async {
         await gatewayClient.disconnect()
         connectionStatus = .disconnected
+    }
+
+    /// Called on app launch - auto-connect if setting is enabled
+    func connectIfNeeded() async {
+        if autoConnect {
+            await connect()
+        }
     }
 
     private func loadInitialData() async {
@@ -92,7 +170,7 @@ final class AppState {
                 currentProvider = extractProvider(from: currentModel)
             }
         } catch {
-            // Config load failed - non-fatal
+            showError("Failed to load config: \(error.localizedDescription)")
         }
     }
 

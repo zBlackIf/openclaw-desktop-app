@@ -4,12 +4,13 @@ struct SettingsView: View {
     @Environment(AppState.self) private var appState
     @State private var gatewayURL: String = ""
     @State private var authToken: String = ""
-    @State private var autoConnect: Bool = true
     @State private var showAdvanced: Bool = false
     @State private var testResult: String?
     @State private var isTesting: Bool = false
 
     var body: some View {
+        @Bindable var state = appState
+
         Form {
             // Gateway Connection
             Section("Gateway Connection") {
@@ -21,7 +22,7 @@ struct SettingsView: View {
                     .textFieldStyle(.roundedBorder)
                     .onAppear { authToken = appState.authToken }
 
-                Toggle("Auto-connect on launch", isOn: $autoConnect)
+                Toggle("Auto-connect on launch", isOn: $state.autoConnect)
 
                 HStack {
                     Button("Test Connection") {
@@ -70,9 +71,7 @@ struct SettingsView: View {
                 }
 
                 LabeledContent("Agent") {
-                    Text(appState.isAgentRunning
-                         ? (appState.isAgentPaused ? "Paused" : "Running")
-                         : "Idle")
+                    Text(appState.isAgentRunning ? "Running" : "Idle")
                 }
             }
 

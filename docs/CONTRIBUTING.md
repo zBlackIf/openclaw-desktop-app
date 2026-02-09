@@ -62,3 +62,36 @@ swift run OpenClawDesktop
 ```bash
 swift test
 ```
+
+Currently 23 unit tests covering:
+- AppState initialization and error display
+- GatewayProtocol encoding/decoding (requests, responses, events)
+- AnyCodable round-trip encoding (string, int, bool, double, array, dictionary, null)
+- ConnectRequest generation (with/without auth)
+- RPC method constants validation
+- Event type and ChatEventKind constants
+- AIModel data model
+- GatewayClient error descriptions
+
+### Gateway API Reference
+
+**RPC Methods** (used in `RPCMethod` constants):
+| Method | Description |
+|--------|-------------|
+| `connect` | Handshake with protocol version, client metadata, auth |
+| `config.get/set/unset/patch/apply/schema` | Configuration management |
+| `chat.send/history/inject/abort` | Chat messaging and agent control |
+| `sessions.list/patch` | Session management |
+| `channels.status` | Channel status |
+| `models.status/list` | Model information |
+| `status/health` | System status |
+
+**Events**:
+- `chat` - Primary event carrying all streaming data (sub-types: thinking, streaming, toolCall, toolResult, complete, error)
+- `system-presence` - Instance availability tracking
+
+**Session Commands** (sent as chat messages):
+- `/new` - Create new session
+- `/reset` - Reset session history
+- `/compact` - Compact session history
+- `/status` - Session status

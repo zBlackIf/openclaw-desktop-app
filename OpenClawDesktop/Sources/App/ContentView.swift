@@ -21,8 +21,21 @@ struct ContentView: View {
                 }
             }
         }
+        .overlay(alignment: .top) {
+            // Error banner overlay
+            if appState.showError, let message = appState.errorMessage {
+                ErrorBannerView(message: message) {
+                    appState.showError = false
+                    appState.errorMessage = nil
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .animation(.easeInOut(duration: 0.3), value: appState.showError)
+                .padding(.top, 8)
+                .padding(.horizontal)
+            }
+        }
         .task {
-            await appState.connect()
+            await appState.connectIfNeeded()
         }
     }
 
@@ -42,6 +55,38 @@ struct ContentView: View {
         case .settings:
             SettingsView()
         }
+    }
+}
+
+// MARK: - Error Banner
+
+struct ErrorBannerView: View {
+    let message: String
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.yellow)
+            Text(message)
+                .font(.caption)
+                .lineLimit(2)
+            Spacer()
+            Button {
+                onDismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(10)
+        .background(.red.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(.red.opacity(0.3), lineWidth: 1)
+        )
     }
 }
 

@@ -106,7 +106,6 @@ struct SubAgentPanel: View {
     private func agentIcon(_ status: GatewayEventBus.SubAgentInfo.SubAgentStatus) -> String {
         switch status {
         case .active: return "person.fill.questionmark"
-        case .paused: return "person.fill.xmark"
         case .completed: return "person.fill.checkmark"
         case .failed: return "person.fill.xmark"
         }
@@ -115,7 +114,6 @@ struct SubAgentPanel: View {
     private func agentColor(_ status: GatewayEventBus.SubAgentInfo.SubAgentStatus) -> Color {
         switch status {
         case .active: return .blue
-        case .paused: return .orange
         case .completed: return .green
         case .failed: return .red
         }

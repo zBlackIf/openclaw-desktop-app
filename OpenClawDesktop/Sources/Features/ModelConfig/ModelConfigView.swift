@@ -243,6 +243,7 @@ class ModelConfigViewModel {
     var currentModel: AIModel?
     var usageHistory: [ModelUsage] = []
     var isLoading = false
+    var errorMessage: String?
 
     func load(using configService: ConfigService) async {
         isLoading = true
@@ -254,7 +255,7 @@ class ModelConfigViewModel {
                 currentModel = AIModel.find(by: modelId)
             }
         } catch {
-            // Load defaults
+            errorMessage = "Failed to load model config: \(error.localizedDescription)"
         }
 
         // Initialize with known providers
@@ -280,8 +281,9 @@ class ModelConfigViewModel {
         do {
             try await configService.setModel(model.providerAndModel)
             currentModel = model
+            errorMessage = nil
         } catch {
-            // Handle error
+            errorMessage = "Failed to switch model: \(error.localizedDescription)"
         }
     }
 }

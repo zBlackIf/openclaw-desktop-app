@@ -75,4 +75,53 @@ final class SessionService: Sendable {
             )
         }
     }
+
+    // MARK: - Session Management
+
+    /// Patch session settings (e.g., name, thinking level, verbose)
+    func patchSession(sessionId: String, updates: [String: Any]) async throws {
+        var params: [String: Any] = ["sessionId": sessionId]
+        for (key, value) in updates {
+            params[key] = value
+        }
+        // Serialize to Data to cross actor boundary safely
+        let jsonData = try JSONSerialization.data(withJSONObject: params)
+        let response = try await gateway.sendJSON(method: RPCMethod.sessionsPatch, jsonData: jsonData)
+        if !response.ok {
+            throw GatewayClient.ClientError.requestFailed(
+                response.error?.message ?? "Failed to patch session"
+            )
+        }
+    }
+
+    /// Send a session command (like /new, /reset, /status, /compact)
+    /// These are sent as regular chat messages that the agent interprets as commands
+    func sendCommand(_ command: String, sessionId: String? = nil) async throws {
+        try await sendMessage(command, sessionId: sessionId)
+    }
+
+    /// Create a new session by sending the /new command
+    func newSession(sessionId: String? = nil) async throws {
+        try await sendCommand("/new", sessionId: sessionId)
+    }
+
+    /// Reset the current session by sending /reset
+    func resetSession(sessionId: String? = nil) async throws {
+        try await sendCommand("/reset", sessionId: sessionId)
+    }
+
+    /// Compact the current session history by sending /compact
+    func compactSession(sessionId: String? = nil) async throws {
+        try await sendCommand("/compact", sessionId: sessionId)
+    }
+
+    /// Abort a running agent via chat.abort
+    func abortAgent() async throws {
+        let response = try await gateway.send(method: RPCMethod.chatAbort)
+        if !response.ok {
+            throw GatewayClient.ClientError.requestFailed(
+                response.error?.message ?? "Failed to abort agent"
+            )
+        }
+    }
 }

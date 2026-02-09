@@ -33,7 +33,7 @@ struct MenuBarView: View {
                 HStack {
                     Image(systemName: "brain")
                         .font(.caption)
-                    Text(appState.isAgentPaused ? "Agent Paused" : "Agent Running")
+                    Text("Agent Running")
                         .font(.caption)
                 }
                 .padding(.horizontal, 4)

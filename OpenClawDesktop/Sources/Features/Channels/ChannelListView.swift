@@ -229,7 +229,7 @@ struct ChannelListView: View {
         defer { isLoading = false }
 
         do {
-            let response = try await appState.gatewayClient.send(method: RPCMethod.channelsList)
+            let response = try await appState.gatewayClient.send(method: RPCMethod.channelsStatus)
             if response.ok, let payload = response.payload,
                let channelsData = payload.arrayValue {
                 channels = channelsData.compactMap { channelDict -> Channel? in
@@ -245,7 +245,7 @@ struct ChannelListView: View {
                 }
             }
         } catch {
-            // Use empty list on error
+            appState.showError("Failed to load channels: \(error.localizedDescription)")
         }
     }
 }

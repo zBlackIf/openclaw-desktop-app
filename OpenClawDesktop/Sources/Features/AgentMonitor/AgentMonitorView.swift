@@ -72,21 +72,13 @@ struct AgentMonitorView: View {
             // Control Buttons
             HStack(spacing: 8) {
                 Button {
-                    Task { await pauseAgent() }
-                } label: {
-                    Image(systemName: appState.isAgentPaused ? "play.fill" : "pause.fill")
-                }
-                .disabled(eventBus?.isAgentActive != true)
-                .help(appState.isAgentPaused ? "Resume Agent" : "Pause Agent")
-
-                Button {
-                    Task { await cancelAgent() }
+                    Task { await abortAgent() }
                 } label: {
                     Image(systemName: "stop.fill")
                 }
                 .disabled(eventBus?.isAgentActive != true)
                 .tint(.red)
-                .help("Cancel Agent Run")
+                .help("Abort Agent Run")
 
                 Button {
                     eventBus?.reset()
@@ -229,23 +221,12 @@ struct AgentMonitorView: View {
 
     // MARK: - Actions
 
-    private func pauseAgent() async {
-        let method = appState.isAgentPaused ? RPCMethod.agentResume : RPCMethod.agentPause
+    private func abortAgent() async {
         do {
-            _ = try await appState.gatewayClient.send(method: method)
-            appState.isAgentPaused.toggle()
-        } catch {
-            // Handle error
-        }
-    }
-
-    private func cancelAgent() async {
-        do {
-            _ = try await appState.gatewayClient.send(method: RPCMethod.agentCancel)
+            _ = try await appState.gatewayClient.send(method: RPCMethod.chatAbort)
             appState.isAgentRunning = false
-            appState.isAgentPaused = false
         } catch {
-            // Handle error
+            appState.showError("Failed to abort agent: \(error.localizedDescription)")
         }
     }
 
@@ -256,7 +237,7 @@ struct AgentMonitorView: View {
             try await appState.sessionService.injectMessage(text)
             injectText = ""
         } catch {
-            // Handle error
+            appState.showError("Failed to inject context: \(error.localizedDescription)")
         }
     }
 }

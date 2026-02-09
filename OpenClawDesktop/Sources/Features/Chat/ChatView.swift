@@ -105,6 +105,7 @@ class ChatViewModel {
     var currentSessionName: String = "Main Session"
     var sessions: [Session] = []
     var streamingContent: String = ""
+    var errorMessage: String?
 
     func loadHistory(using service: SessionService) async {
         do {
@@ -117,7 +118,7 @@ class ChatViewModel {
                 messages = try await service.getHistory(sessionId: sessionId)
             }
         } catch {
-            // Handle error silently for now
+            errorMessage = "Failed to load chat history: \(error.localizedDescription)"
         }
     }
 
@@ -141,6 +142,7 @@ class ChatViewModel {
             try await service.sendMessage(text, sessionId: currentSessionId)
         } catch {
             isAgentTyping = false
+            errorMessage = "Failed to send message: \(error.localizedDescription)"
         }
     }
 
@@ -153,36 +155,29 @@ class ChatViewModel {
         }
     }
 
+    /// Handle incoming events from the Gateway.
+    /// The real Gateway sends a single `chat` event with different payload kinds.
     private func handleEvent(_ event: GatewayEvent) {
-        switch event.event {
-        case GatewayEventType.agentStreaming:
-            if let content = event.payload?.dictValue?["content"] as? String {
-                streamingContent += content
+        guard event.event == GatewayEventType.chat else { return }
+        guard let dict = event.payload?.dictValue else { return }
 
-                // Update or create streaming message
-                if let lastIndex = messages.indices.last,
-                   messages[lastIndex].role == .assistant && messages[lastIndex].id == "streaming" {
-                    messages[lastIndex] = ChatMessage(
-                        id: "streaming",
-                        role: .assistant,
-                        content: streamingContent,
-                        timestamp: Date(),
-                        model: event.payload?.dictValue?["model"] as? String,
-                        tokens: nil
-                    )
-                } else {
-                    messages.append(ChatMessage(
-                        id: "streaming",
-                        role: .assistant,
-                        content: streamingContent,
-                        timestamp: Date(),
-                        model: event.payload?.dictValue?["model"] as? String,
-                        tokens: nil
-                    ))
-                }
+        // Determine what kind of chat update this is
+        let kind = dict["kind"] as? String ?? dict["type"] as? String ?? ""
+
+        switch kind {
+        case ChatEventKind.streaming.rawValue, "":
+            // Streaming text content
+            if let content = dict["content"] as? String {
+                streamingContent += content
+                isAgentTyping = true
+                updateOrCreateStreamingMessage(model: dict["model"] as? String)
             }
 
-        case GatewayEventType.agentComplete:
+        case ChatEventKind.thinking.rawValue:
+            // Agent is thinking - show typing indicator but don't add text
+            isAgentTyping = true
+
+        case ChatEventKind.complete.rawValue:
             isAgentTyping = false
             // Finalize the streaming message
             if let lastIndex = messages.indices.last,
@@ -193,18 +188,56 @@ class ChatViewModel {
                     role: .assistant,
                     content: finalContent,
                     timestamp: Date(),
-                    model: event.payload?.dictValue?["model"] as? String,
-                    tokens: event.payload?.dictValue?["tokens"] as? Int
+                    model: dict["model"] as? String,
+                    tokens: dict["tokens"] as? Int
                 )
             }
             streamingContent = ""
 
-        case GatewayEventType.agentError:
+        case ChatEventKind.error.rawValue:
             isAgentTyping = false
+            if let errorMsg = dict["message"] as? String ?? dict["error"] as? String {
+                messages.append(ChatMessage(
+                    id: UUID().uuidString,
+                    role: .system,
+                    content: "Error: \(errorMsg)",
+                    timestamp: Date(),
+                    model: nil,
+                    tokens: nil
+                ))
+            }
             streamingContent = ""
 
         default:
-            break
+            // For any other kind, try to extract content
+            if let content = dict["content"] as? String, !content.isEmpty {
+                streamingContent += content
+                isAgentTyping = true
+                updateOrCreateStreamingMessage(model: dict["model"] as? String)
+            }
+        }
+    }
+
+    private func updateOrCreateStreamingMessage(model: String?) {
+        if let lastIndex = messages.indices.last,
+           messages[lastIndex].role == .assistant && messages[lastIndex].id == "streaming" {
+            messages[lastIndex] = ChatMessage(
+                id: "streaming",
+                role: .assistant,
+                content: streamingContent,
+                timestamp: Date(),
+                model: model,
+                tokens: nil
+            )
+        } else {
+            messages.append(ChatMessage(
+                id: "streaming",
+                role: .assistant,
+                content: streamingContent,
+                timestamp: Date(),
+                model: model,
+                tokens: nil
+            ))
         }
     }
 

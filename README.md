@@ -7,9 +7,13 @@ A native macOS desktop application for [OpenClaw](https://github.com/openclaw/op
 OpenClaw is powerful but requires editing JSON config files, offers no visibility into agent reasoning, and has complex channel setup. This app provides:
 
 - **Visual Model Configuration** - Switch models with one click, see usage stats
-- **Agent Thinking Visualization** - See the agent's reasoning in real-time, pause/resume/cancel execution
+- **Agent Thinking Visualization** - See the agent's reasoning in real-time, abort execution with `chat.abort`
+- **Markdown Chat** - Rich message rendering with code blocks (syntax labels, copy button), inline formatting
 - **Channel Setup Wizard** - Step-by-step guided setup for WhatsApp, Telegram, Discord, and more
-- **Sub-Agent Control** - Monitor and manage spawned sub-agents
+- **Session Management** - Create, reset, compact sessions; view full chat history
+- **Sub-Agent Monitoring** - Track spawned sub-agents and their status
+- **Settings Persistence** - Gateway URL, auth token, and preferences saved across restarts
+- **Error Handling** - Clear error banners with auto-dismiss for all operations
 
 ## Requirements
 

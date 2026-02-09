@@ -14,12 +14,23 @@ struct SessionListView: View {
                     Text("Sessions")
                         .font(.headline)
                     Spacer()
+
+                    // New Session button
+                    Button {
+                        Task { await newSession() }
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .buttonStyle(.plain)
+                    .help("New Session")
+
                     Button {
                         Task { await loadSessions() }
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
                     .buttonStyle(.plain)
+                    .help("Refresh")
                 }
                 .padding()
 
@@ -114,7 +125,17 @@ struct SessionListView: View {
         do {
             sessions = try await appState.sessionService.listSessions()
         } catch {
+            appState.showError("Failed to load sessions: \(error.localizedDescription)")
             sessions = []
+        }
+    }
+
+    private func newSession() async {
+        do {
+            try await appState.sessionService.newSession()
+            await loadSessions()
+        } catch {
+            appState.showError("Failed to create new session: \(error.localizedDescription)")
         }
     }
 }
@@ -161,6 +182,27 @@ struct SessionDetailView: View {
                     }
                 }
                 Spacer()
+
+                // Session actions
+                HStack(spacing: 8) {
+                    Button {
+                        Task { await resetSession() }
+                    } label: {
+                        Label("Reset", systemImage: "arrow.counterclockwise")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Reset session history")
+
+                    Button {
+                        Task { await compactSession() }
+                    } label: {
+                        Label("Compact", systemImage: "arrow.down.right.and.arrow.up.left")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Compact session history")
+                }
             }
             .padding()
 
@@ -180,8 +222,26 @@ struct SessionDetailView: View {
             do {
                 messages = try await appState.sessionService.getHistory(sessionId: session.id)
             } catch {
+                appState.showError("Failed to load session history: \(error.localizedDescription)")
                 messages = []
             }
+        }
+    }
+
+    private func resetSession() async {
+        do {
+            try await appState.sessionService.resetSession(sessionId: session.id)
+            messages = try await appState.sessionService.getHistory(sessionId: session.id)
+        } catch {
+            appState.showError("Failed to reset session: \(error.localizedDescription)")
+        }
+    }
+
+    private func compactSession() async {
+        do {
+            try await appState.sessionService.compactSession(sessionId: session.id)
+        } catch {
+            appState.showError("Failed to compact session: \(error.localizedDescription)")
         }
     }
 }

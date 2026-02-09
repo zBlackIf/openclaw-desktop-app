@@ -9,6 +9,7 @@ actor GatewayClient {
         case requestTimeout
         case requestFailed(String)
         case invalidResponse
+        case handshakeFailed(String)
 
         var errorDescription: String? {
             switch self {
@@ -17,6 +18,7 @@ actor GatewayClient {
             case .requestTimeout: return "Request timed out"
             case .requestFailed(let msg): return "Request failed: \(msg)"
             case .invalidResponse: return "Invalid response from Gateway"
+            case .handshakeFailed(let msg): return "Handshake failed: \(msg)"
             }
         }
     }
@@ -26,7 +28,6 @@ actor GatewayClient {
     private var webSocket: URLSessionWebSocketTask?
     private var urlSession: URLSession?
     private var pendingRequests: [String: CheckedContinuation<GatewayResponse, Error>] = [:]
-    private var eventHandlers: [String: [(AnyCodable?) -> Void]] = [:]
     private var isConnected = false
     private var reconnectAttempts = 0
     private let maxReconnectAttempts = 10
@@ -53,12 +54,33 @@ actor GatewayClient {
         self.webSocket = task
         task.resume()
 
-        // Send handshake
-        let handshake = ConnectRequest(token: token)
+        // Send proper connect handshake (aligned with real Gateway protocol)
+        let connectReq = makeConnectRequest(token: token)
         let encoder = JSONEncoder()
-        let data = try encoder.encode(handshake)
+        let data = try encoder.encode(connectReq)
         let message = URLSessionWebSocketTask.Message.string(String(data: data, encoding: .utf8)!)
         try await task.send(message)
+
+        // Wait for hello-ok response
+        let response = try await task.receive()
+        switch response {
+        case .string(let text):
+            if let responseData = text.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any] {
+                // Check for successful handshake
+                if let ok = json["ok"] as? Bool, ok {
+                    // Handshake successful
+                } else if let error = json["error"] as? [String: Any] {
+                    let msg = error["message"] as? String ?? "Unknown handshake error"
+                    throw ClientError.handshakeFailed(msg)
+                }
+                // Also accept if type is "res" with ok:true (standard response)
+            }
+        case .data:
+            break // Unexpected but continue
+        @unknown default:
+            break
+        }
 
         isConnected = true
         reconnectAttempts = 0

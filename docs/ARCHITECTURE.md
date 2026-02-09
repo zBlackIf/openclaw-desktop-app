@@ -67,17 +67,27 @@ Response: { type: "res",   id, ok, payload|error }
 Event:    { type: "event", event, payload, seq?, stateVersion? }
 ```
 
-**Key RPC Methods**:
-- `config.get` / `config.patch` / `config.apply` - Configuration
-- `chat.send` / `chat.history` / `chat.inject` - Messaging
-- `sessions.list` / `sessions.history` - Sessions
-- `agent.pause` / `agent.resume` / `agent.cancel` - Agent control
-- `channels.list` / `channels.status` - Channels
-- `models.status` / `models.providers` - Models
+**Key RPC Methods** (aligned with real OpenClaw Gateway API):
+- `config.get` / `config.set` / `config.unset` / `config.patch` / `config.apply` / `config.schema` - Configuration
+- `chat.send` / `chat.history` / `chat.inject` / `chat.abort` - Messaging & agent control
+- `sessions.list` / `sessions.patch` - Sessions
+- `channels.status` - Channels
+- `models.status` / `models.list` - Models
+- `status` / `health` - System status
 
 ### GatewayEventBus (`Core/Gateway/GatewayEventBus.swift`)
 
 Observable event processor that transforms raw Gateway events into structured UI state.
+
+**Event Processing**: The Gateway sends a single `chat` event for all streaming data. The EventBus parses the payload's `kind` field to determine the sub-type:
+- `thinking` - Agent reasoning/thinking text
+- `streaming` - Token-by-token text output
+- `toolCall` - Tool invocation start
+- `toolResult` - Tool invocation result
+- `complete` - Agent finished
+- `error` - Agent error
+
+Also handles `system-presence` events for instance availability.
 
 **Tracked State**:
 - `currentThinking` - Live thinking text
@@ -85,6 +95,7 @@ Observable event processor that transforms raw Gateway events into structured UI
 - `currentPlan` - Execution plan steps with status
 - `activeToolCalls` - In-progress and completed tool calls
 - `subAgents` - Spawned sub-agents with status
+- `streamingContent` - Current streaming text accumulator
 
 ### AppState (`App/AppState.swift`)
 

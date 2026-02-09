@@ -9,7 +9,7 @@ final class ModelProviderService: Sendable {
     }
 
     func getProviders() async throws -> [ModelProvider] {
-        let response = try await gateway.send(method: RPCMethod.modelsProviders)
+        let response = try await gateway.send(method: RPCMethod.modelsList)
         guard response.ok, let payload = response.payload,
               let providersData = payload.arrayValue else {
             // Return default providers if gateway doesn't support this method

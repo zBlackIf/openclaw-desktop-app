@@ -49,72 +49,182 @@ struct GatewayEvent: Codable, @unchecked Sendable {
     let stateVersion: Int?
 }
 
-// MARK: - Connect Handshake
+// MARK: - Connect Handshake (aligned with real Gateway protocol)
 
-struct ConnectRequest: Codable {
-    let type: String
+/// The Gateway uses a `connect` RPC method for handshake.
+/// Server may send a challenge first; client responds with connect request.
+struct ConnectParams: Codable {
     let role: String
     let scopes: [String]
-    let token: String?
+    let client: ClientInfo
+    let auth: AuthInfo?
+    let minProtocol: Int?
+    let maxProtocol: Int?
 
-    init(token: String? = nil) {
-        self.type = "req"
-        self.role = "operator"
-        self.scopes = ["operator.read", "operator.write"]
-        self.token = token
+    struct ClientInfo: Codable {
+        let id: String
+        let version: String
+        let platform: String
+        let mode: String
+    }
+
+    struct AuthInfo: Codable {
+        let token: String?
+        let password: String?
     }
 }
 
-// MARK: - RPC Methods
+/// Build the connect handshake request
+func makeConnectRequest(token: String? = nil, password: String? = nil) -> GatewayRequest {
+    let clientId = UUID().uuidString
+    let params = ConnectParams(
+        role: "operator",
+        scopes: ["operator.read", "operator.write"],
+        client: ConnectParams.ClientInfo(
+            id: clientId,
+            version: "0.2.0",
+            platform: "macos",
+            mode: "desktop"
+        ),
+        auth: (token != nil || password != nil) ? ConnectParams.AuthInfo(
+            token: token,
+            password: password
+        ) : nil,
+        minProtocol: 1,
+        maxProtocol: 1
+    )
+
+    var dict: [String: Any] = [
+        "role": params.role,
+        "scopes": params.scopes,
+        "client": [
+            "id": params.client.id,
+            "version": params.client.version,
+            "platform": params.client.platform,
+            "mode": params.client.mode
+        ],
+        "minProtocol": params.minProtocol ?? 1,
+        "maxProtocol": params.maxProtocol ?? 1
+    ]
+
+    // Only include auth if we have credentials
+    if let token {
+        dict["auth"] = ["token": token]
+    } else if let password {
+        dict["auth"] = ["password": password]
+    }
+
+    return GatewayRequest(
+        method: "connect",
+        params: AnyCodable(dict)
+    )
+}
+
+// MARK: - RPC Methods (aligned with real OpenClaw Gateway API)
 
 enum RPCMethod {
+    // Connection
+    static let connect = "connect"
+
     // Config
     static let configGet = "config.get"
+    static let configSet = "config.set"
+    static let configUnset = "config.unset"
     static let configApply = "config.apply"
     static let configPatch = "config.patch"
+    static let configSchema = "config.schema"
 
     // Chat
     static let chatSend = "chat.send"
     static let chatHistory = "chat.history"
     static let chatInject = "chat.inject"
+    static let chatAbort = "chat.abort"
 
     // Sessions
     static let sessionsList = "sessions.list"
-    static let sessionsHistory = "sessions.history"
+    static let sessionsPatch = "sessions.patch"
 
-    // Agent
-    static let agentStatus = "agent.status"
-    static let agentPause = "agent.pause"
-    static let agentResume = "agent.resume"
-    static let agentCancel = "agent.cancel"
+    // System
+    static let status = "status"
+    static let health = "health"
+    static let logsTail = "logs.tail"
 
     // Channels
-    static let channelsList = "channels.list"
     static let channelsStatus = "channels.status"
 
     // Models
     static let modelsStatus = "models.status"
-    static let modelsProviders = "models.providers"
+    static let modelsList = "models.list"
+
+    // Nodes
+    static let nodeList = "node.list"
 
     // Skills
     static let skillsList = "skills.list"
+    static let skillsEnable = "skills.enable"
+    static let skillsDisable = "skills.disable"
+
+    // Cron
+    static let cronList = "cron.list"
+    static let cronStatus = "cron.status"
+    static let cronAdd = "cron.add"
+    static let cronUpdate = "cron.update"
+    static let cronRemove = "cron.remove"
+    static let cronRun = "cron.run"
+    static let cronRuns = "cron.runs"
+
+    // System Events
+    static let systemEvent = "system.event"
+
+    // Exec Approvals
+    static let execApprovals = "exec.approvals"
+
+    // Updates
+    static let updateRun = "update.run"
 }
 
-// MARK: - Event Types
+// MARK: - Event Types (aligned with real OpenClaw Gateway)
+// The real Gateway uses a `chat` event for all streaming data,
+// and `system-presence` for instance availability.
+// Individual fields in the `chat` event payload distinguish
+// thinking, tool calls, streaming text, etc.
 
 enum GatewayEventType {
-    static let agentThinking = "agent.thinking"
-    static let agentStreaming = "agent.streaming"
-    static let agentToolCall = "agent.tool_call"
-    static let agentToolResult = "agent.tool_result"
-    static let agentComplete = "agent.complete"
-    static let agentError = "agent.error"
-    static let agentPlanUpdate = "agent.plan_update"
-    static let sessionUpdate = "session.update"
-    static let channelUpdate = "channel.update"
-    static let configUpdate = "config.update"
-    static let subAgentSpawn = "agent.sub_spawn"
-    static let subAgentComplete = "agent.sub_complete"
+    // Primary streaming event - carries all chat/agent activity
+    static let chat = "chat"
+
+    // System events
+    static let systemPresence = "system-presence"
+
+    // Hook/lifecycle events
+    static let agentBootstrap = "agent.bootstrap"
+    static let gatewayStartup = "gateway:startup"
+
+    // Exec approval events
+    static let execApprovalRequested = "exec.approval.requested"
+
+    // Legacy/internal event names for event bus parsing
+    // These are sub-types extracted from the `chat` event payload
+    static let chatThinking = "chat.thinking"
+    static let chatStreaming = "chat.streaming"
+    static let chatToolCall = "chat.tool_call"
+    static let chatToolResult = "chat.tool_result"
+    static let chatComplete = "chat.complete"
+    static let chatError = "chat.error"
+}
+
+// MARK: - Chat Event Payload Sub-Types
+// The `chat` event carries different kinds of data in its payload.
+// We parse the payload to determine what type of chat update it is.
+
+enum ChatEventKind: String {
+    case thinking       // Agent thinking/reasoning block
+    case streaming      // Streaming text content
+    case toolCall       // Tool call initiated
+    case toolResult     // Tool call result returned
+    case complete       // Agent turn complete
+    case error          // Agent error
+    case message        // Full message (from history or final)
 }
 
 // MARK: - AnyCodable (lightweight any-type wrapper)
